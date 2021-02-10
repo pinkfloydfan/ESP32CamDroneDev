@@ -164,7 +164,7 @@ void setup() {
     }
 
   //100000 for sbus, 8E2 - 8 bits, even, 2 stop bits
-  Serial1.begin(100000, SERIAL_8E2, 12, 13); 
+  Serial1.begin(100000, SERIAL_8E2, 13, 12); 
 
 }
 
@@ -185,12 +185,12 @@ void loop() {
         //uart_write_bytes(uart_num, rcChannels, SBUS_PACKET_LENGTH)
         //Serial.print("Writing SBUS... ");
         Serial1.write(sbusPacket, SBUS_PACKET_LENGTH);
-        Serial.write(sbusPacket, SBUS_PACKET_LENGTH);
+        //Serial.write(sbusPacket, SBUS_PACKET_LENGTH);
 
 
         sbusTime = currentMillis + SBUS_UPDATE_RATE;
     }
 
-  // Look for and handle WebSocket data
-  webSocket.loop();
+  // Look for and handle WebSocket data - disabled just in case this was interfering with sbus
+  //webSocket.loop();
 }
