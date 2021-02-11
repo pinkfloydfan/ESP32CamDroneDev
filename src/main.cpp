@@ -103,6 +103,10 @@ void onWebSocketEvent(uint8_t num,
   }
 }
 
+void processCommandArray() {
+  
+}
+
 void setup() {
 
   // Start Serial monitor port
@@ -156,5 +160,5 @@ void loop() {
 
 
   // Look for and handle WebSocket data - disabled just in case this was interfering with sbus
-  //webSocket.loop();
+  webSocket.loop();
 }
