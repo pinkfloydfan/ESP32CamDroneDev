@@ -2,6 +2,14 @@
 #include <WebSocketsServer.h>
 #include <HardwareSerial.h>
 
+#include <string>
+#include <sstream>
+#include <vector>
+
+#define CAMERA_MODEL_AI_THINKER
+#include "camera_pins.h"
+#include "esp_camera.h"
+
 // Constants
 
 //Allocate GPIO12 to sbus tx
@@ -29,8 +37,6 @@ uint32_t sbusTime = 0;
 uint8_t ibusPacket [ibusPacketLength];
 uint32_t ibusTime = 0;
 
-
-//SBUS end
 
 // Globals 
 // also we've disabled CORS access control with the 2nd argument...
@@ -61,6 +67,112 @@ void prepareibusPacket() {
 
 }
 
+// relies upon the pin definitions in camera_pins.h
+void cameraSetup() { 
+
+  camera_config_t config;
+  config.ledc_channel = LEDC_CHANNEL_0;
+  config.ledc_timer = LEDC_TIMER_0;
+  config.pin_d0 = Y2_GPIO_NUM;
+  config.pin_d1 = Y3_GPIO_NUM;
+  config.pin_d2 = Y4_GPIO_NUM;
+  config.pin_d3 = Y5_GPIO_NUM;
+  config.pin_d4 = Y6_GPIO_NUM;
+  config.pin_d5 = Y7_GPIO_NUM;
+  config.pin_d6 = Y8_GPIO_NUM;
+  config.pin_d7 = Y9_GPIO_NUM;
+  config.pin_xclk = XCLK_GPIO_NUM;
+  config.pin_pclk = PCLK_GPIO_NUM;
+  config.pin_vsync = VSYNC_GPIO_NUM;
+  config.pin_href = HREF_GPIO_NUM;
+  config.pin_sscb_sda = SIOD_GPIO_NUM;
+  config.pin_sscb_scl = SIOC_GPIO_NUM;
+  config.pin_pwdn = PWDN_GPIO_NUM;
+  config.pin_reset = RESET_GPIO_NUM;
+  config.xclk_freq_hz = 20000000;
+  config.pixel_format = PIXFORMAT_JPEG;
+  //init with high specs to pre-allocate larger buffers
+  if(psramFound()){
+    config.frame_size = FRAMESIZE_UXGA;
+    config.jpeg_quality = 10;
+    config.fb_count = 2;
+  } else {
+    config.frame_size = FRAMESIZE_SVGA;
+    config.jpeg_quality = 12;
+    config.fb_count = 1;
+  }
+
+#if defined(CAMERA_MODEL_ESP_EYE)
+  pinMode(13, INPUT_PULLUP);
+  pinMode(14, INPUT_PULLUP);
+#endif
+
+  // camera init
+  esp_err_t err = esp_camera_init(&config);
+  if (err != ESP_OK) {
+    Serial.printf("Camera init failed with error 0x%x", err);
+    return;
+  }
+
+  sensor_t * s = esp_camera_sensor_get();
+  //initial sensors are flipped vertically and colors are a bit saturated
+  if (s->id.PID == OV3660_PID) {
+    s->set_vflip(s, 1);//flip it back
+    s->set_brightness(s, 1);//up the blightness just a bit
+    s->set_saturation(s, -2);//lower the saturation
+  }
+  //drop down frame size for higher initial frame rate
+  s->set_framesize(s, FRAMESIZE_QVGA);
+
+#if defined(CAMERA_MODEL_M5STACK_WIDE)
+  s->set_vflip(s, 1);
+  s->set_hmirror(s, 1);
+#endif
+
+}
+
+//set up wifi access point
+void setupAP() {
+
+  Serial.print("Setting soft-AP configuration ... ");
+  Serial.println(WiFi.softAPConfig(local_IP, gateway, subnet) ? "Ready" : "Failed!");
+
+  // create access point 
+  Serial.println("Creating AP");
+  WiFi.softAP(ssid, password, 1, false, 4);
+  // Print our IP address
+  Serial.println("Connected!");
+  Serial.print("My IP address: ");
+  Serial.println(WiFi.softAPIP());
+
+}
+
+// gives iBus packet the correct header bytes
+void setupIbus() {
+  ibusPacket[0] = 0x20;
+  ibusPacket[1] = 0x40;
+   Serial1.begin(115200, SERIAL_8N1, 13, 12);
+
+}
+
+void processCommandArray(std::string input) {
+
+    std::vector<int> vect;
+
+    std::stringstream ss(input);
+
+    for (int i = 0; ss >> i;) {
+        vect.push_back(i);    
+        if (ss.peek() == ',') {
+                    ss.ignore();
+
+        }
+    }
+
+    for (int j = 0; j < vect.size(); j++) {
+      rcChannels[j] = vect[j];
+    }
+}
 
 // Called when receiving any WebSocket message
 void onWebSocketEvent(uint8_t num,
@@ -88,7 +200,8 @@ void onWebSocketEvent(uint8_t num,
     // Echo text message back to client
     case WStype_TEXT:
       Serial.printf("[%u] Text: %s\n", num, payload);
-      webSocket.sendTXT(num, payload);
+      processCommandArray((const char*)payload);
+      //webSocket.sendTXT(num, payload);
       break;
 
     // For everything else: do nothing
@@ -103,36 +216,22 @@ void onWebSocketEvent(uint8_t num,
   }
 }
 
-void processCommandArray() {
-  
-}
 
 void setup() {
 
   // Start Serial monitor port
-  //Serial.begin(115200);
-  Serial.begin(115200); //test 
+  Serial.begin(115200);
 
-  Serial.print("Setting soft-AP configuration ... ");
-  Serial.println(WiFi.softAPConfig(local_IP, gateway, subnet) ? "Ready" : "Failed!");
+  setupAP();
 
-  // create access point 
-  Serial.println("Creating AP");
-  WiFi.softAP(ssid, password, 1, false, 4);
-  // Print our IP address
-  Serial.println("Connected!");
-  Serial.print("My IP address: ");
-  Serial.println(WiFi.softAPIP());
+  setupIbus();
 
   // Start WebSocket server and assign callback
   webSocket.begin();
   webSocket.onEvent(onWebSocketEvent);
 
   //Setup IBUS output
-  ibusPacket[0] = 0x20;
-  ibusPacket[1] = 0x40;
 
-  Serial1.begin(115200, SERIAL_8N1, 13, 12);
 
 }
 
@@ -145,10 +244,8 @@ void loop() {
      */
       if (currentMillis > ibusTime) {
         prepareibusPacket() ;
-        //uart_write_bytes(uart_num, rcChannels, SBUS_PACKET_LENGTH)
-        //Serial.print("Writing SBUS... ");
+
         Serial1.write(ibusPacket, ibusPacketLength);
-        //Serial.write(sbusPacket, SBUS_PACKET_LENGTH);
 
 
         ibusTime = currentMillis + 7;
@@ -157,8 +254,5 @@ void loop() {
 
 
 
-
-
-  // Look for and handle WebSocket data - disabled just in case this was interfering with sbus
   webSocket.loop();
 }
