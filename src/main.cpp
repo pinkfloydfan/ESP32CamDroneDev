@@ -197,7 +197,7 @@ void onWebSocketEvent(uint8_t num,
       }
       break;
 
-    // Echo text message back to client
+    // Echo text message back to client - refactor and possibly consider adding a header character
     case WStype_TEXT:
       Serial.printf("[%u] Text: %s\n", num, payload);
       processCommandArray((const char*)payload);
@@ -242,14 +242,18 @@ void loop() {
     /*
      * Here you can modify values of rcChannels while keeping it in 1000:2000 range
      */
+
+    
       if (currentMillis > ibusTime) {
         prepareibusPacket() ;
 
         Serial1.write(ibusPacket, ibusPacketLength);
 
 
-        ibusTime = currentMillis + 7;
+        ibusTime = currentMillis + 15;
     }
+
+    
 
 
 
