@@ -67,8 +67,10 @@ void prepareibusPacket() {
 
 }
 
-// relies upon the pin definitions in camera_pins.h
-void cameraSetup() { 
+//initialises OV2640, relies upon the pin definitions in camera_pins.h
+void setupCamera() { 
+  Serial.printf("attempting to setup camera...");
+
 
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -129,6 +131,8 @@ void cameraSetup() {
   s->set_hmirror(s, 1);
 #endif
 
+  Serial.printf("Camera ready!");
+
 }
 
 //set up wifi access point
@@ -144,6 +148,24 @@ void setupAP() {
   Serial.println("Connected!");
   Serial.print("My IP address: ");
   Serial.println(WiFi.softAPIP());
+
+}
+
+void takeImage() {
+  //*fb is pointer to image data
+  camera_fb_t *fb = esp_camera_fb_get(); 
+
+  if (!fb) {
+    Serial.println("Could not capture image");
+  }
+
+  //access member buf from pointer *fb
+  const char *data = (const char *)fb->buf;
+}
+
+void sendImageBuffer(char* imageBuffer) {
+
+
 
 }
 
@@ -221,6 +243,8 @@ void setup() {
 
   // Start Serial monitor port
   Serial.begin(115200);
+
+  setupCamera();
 
   setupAP();
 
