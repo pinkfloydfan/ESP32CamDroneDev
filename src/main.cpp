@@ -63,7 +63,7 @@ IPAddress local_IP(192,168,4,22);
 IPAddress gateway(192,168,4,9);
 IPAddress subnet(255,255,255,0);
 
-int rcChannels[14] = {1500, 1400, 1300, 1200, 1100, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500};
+int rcChannels[14] = {1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500};
 
 
 uint8_t ibusPacket [ibusPacketLength];
