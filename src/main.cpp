@@ -37,6 +37,8 @@ uint32_t sbusTime = 0;
 uint8_t ibusPacket [ibusPacketLength];
 uint32_t ibusTime = 0;
 
+//webSocket client 
+uint8_t wsClientID;
 
 // Globals 
 // also we've disabled CORS access control with the 2nd argument...
@@ -94,15 +96,32 @@ void setupCamera() {
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
   //init with high specs to pre-allocate larger buffers
+
+  /*
+  it appears the ESP32CAM may have PSRAM but we're using it to stream so potato quality is enforced. 
   if(psramFound()){
+    Serial.printf("psram");
     config.frame_size = FRAMESIZE_UXGA;
     config.jpeg_quality = 10;
     config.fb_count = 2;
   } else {
+    Serial.printf("psramn't");
+
     config.frame_size = FRAMESIZE_SVGA;
-    config.jpeg_quality = 12;
+    //potato quality
+    config.jpeg_quality = 32;
     config.fb_count = 1;
-  }
+
+    }
+
+  */
+
+    //early 2000s nokia phone camera quality
+    config.frame_size = FRAMESIZE_QVGA;
+    config.jpeg_quality = 32;
+    config.fb_count = 1;
+
+
 
 #if defined(CAMERA_MODEL_ESP_EYE)
   pinMode(13, INPUT_PULLUP);
@@ -151,23 +170,34 @@ void setupAP() {
 
 }
 
+//sends an image buffer (char array?? ) over the websocket. N.B. maybe binary will work better?
+void sendImageBuffer(const char* imageBuffer) {
+
+  //check if there's a websocket client connected - will need more rigour when scaling this for multiple aircraft
+  if (wsClientID) {
+    webSocket.sendTXT(wsClientID, imageBuffer);
+  } else {
+    Serial.printf("Could not send image, no websocket client connected\n");
+  }
+}
+
+
+//attempts to access ESP camera and get its file buffer
 void takeImage() {
   //*fb is pointer to image data
   camera_fb_t *fb = esp_camera_fb_get(); 
 
   if (!fb) {
     Serial.println("Could not capture image");
+  } else {
+    
+      //-> = access member buf from pointer *fb
+    const char *data = (const char *)fb->buf;
+    sendImageBuffer(data); 
   }
 
-  //access member buf from pointer *fb
-  const char *data = (const char *)fb->buf;
 }
 
-void sendImageBuffer(char* imageBuffer) {
-
-
-
-}
 
 // gives iBus packet the correct header bytes
 void setupIbus() {
@@ -213,13 +243,14 @@ void onWebSocketEvent(uint8_t num,
     // New client has connected
     case WStype_CONNECTED:
       {
+        //ghetto solution for now: as soon as a client connects, store its ID as a global. 
+        wsClientID = num;
         IPAddress ip = webSocket.remoteIP(num);
         Serial.printf("[%u] Connection from ", num);
         Serial.println(ip.toString());
       }
       break;
 
-    // Echo text message back to client - refactor and possibly consider adding a header character
     case WStype_TEXT:
       Serial.printf("[%u] Text: %s\n", num, payload);
       processCommandArray((const char*)payload);
@@ -269,6 +300,7 @@ void loop() {
 
     
       if (currentMillis > ibusTime) {
+        takeImage() ;
         prepareibusPacket() ;
 
         Serial1.write(ibusPacket, ibusPacketLength);
@@ -276,11 +308,6 @@ void loop() {
 
         ibusTime = currentMillis + 15;
     }
-
-    
-
-
-
 
   webSocket.loop();
 }
