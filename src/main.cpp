@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include <WiFi.h>
 #include <WebSocketsServer.h>
 #include <HardwareSerial.h>
@@ -31,14 +33,18 @@ IPAddress gateway(192,168,4,9);
 IPAddress subnet(255,255,255,0);
 
 int rcChannels[14] = {1500, 1400, 1300, 1200, 1100, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500};
-uint32_t sbusTime = 0;
 
 
 uint8_t ibusPacket [ibusPacketLength];
-uint32_t ibusTime = 0;
+//time counter for updating ibus signals
+uint32_t loopTime = 0;
+//time interval between camera and rc signal updates (ms)
+const uint8_t loopDelay = 100;
 
-//webSocket client 
-uint8_t wsClientID;
+//TODO: improve this implementation
+bool wsClientConnected = false; 
+//webSocket client ID defaults to 0 
+uint8_t wsClientID = 0;
 
 // Globals 
 // also we've disabled CORS access control with the 2nd argument...
@@ -94,7 +100,8 @@ void setupCamera() {
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
-  config.pixel_format = PIXFORMAT_JPEG;
+  //Have tried raw, didn't work! 
+  config.pixel_format = PIXFORMAT_JPEG; 
   //init with high specs to pre-allocate larger buffers
 
   /*
@@ -117,6 +124,7 @@ void setupCamera() {
   */
 
     //early 2000s nokia phone camera quality
+    //tbf consider improving the comms so this can be adjusted from the client?
     config.frame_size = FRAMESIZE_QVGA;
     config.jpeg_quality = 32;
     config.fb_count = 1;
@@ -170,15 +178,20 @@ void setupAP() {
 
 }
 
-//sends an image buffer (char array?? ) over the websocket. N.B. maybe binary will work better?
-void sendImageBuffer(const char* imageBuffer) {
+//sends an image buffer blob over the websocket. N.B. maybe binary will work better?
+void sendImageBuffer(const uint8_t* imageBuffer, const size_t len) {
 
   //check if there's a websocket client connected - will need more rigour when scaling this for multiple aircraft
-  if (wsClientID) {
-    webSocket.sendTXT(wsClientID, imageBuffer);
-  } else {
-    Serial.printf("Could not send image, no websocket client connected\n");
+  if (wsClientConnected == true) {
+      Serial.printf("Sending image!");
+
+      //Serial.println(imageBuffer); 
+
+      //sends jpeg as binary 
+      webSocket.sendBIN(wsClientID, imageBuffer, len);
   }
+
+
 }
 
 
@@ -192,8 +205,10 @@ void takeImage() {
   } else {
     
       //-> = access member buf from pointer *fb
-    const char *data = (const char *)fb->buf;
-    sendImageBuffer(data); 
+    const uint8_t *data = (const uint8_t *)fb->buf;
+    const size_t len = fb -> len;
+    std::cout << data;
+    sendImageBuffer(data, len); 
   }
 
 }
@@ -237,6 +252,7 @@ void onWebSocketEvent(uint8_t num,
 
     // Client has disconnected
     case WStype_DISCONNECTED:
+      wsClientConnected = false;
       Serial.printf("[%u] Disconnected!\n", num);
       break;
 
@@ -244,6 +260,7 @@ void onWebSocketEvent(uint8_t num,
     case WStype_CONNECTED:
       {
         //ghetto solution for now: as soon as a client connects, store its ID as a global. 
+        wsClientConnected = true;
         wsClientID = num;
         IPAddress ip = webSocket.remoteIP(num);
         Serial.printf("[%u] Connection from ", num);
@@ -252,6 +269,8 @@ void onWebSocketEvent(uint8_t num,
       break;
 
     case WStype_TEXT:
+      wsClientID = num;
+      Serial.print(wsClientID);
       Serial.printf("[%u] Text: %s\n", num, payload);
       processCommandArray((const char*)payload);
       //webSocket.sendTXT(num, payload);
@@ -299,14 +318,14 @@ void loop() {
      */
 
     
-      if (currentMillis > ibusTime) {
+      if (currentMillis > loopTime) {
         takeImage() ;
         prepareibusPacket() ;
 
         Serial1.write(ibusPacket, ibusPacketLength);
 
 
-        ibusTime = currentMillis + 15;
+        loopTime = currentMillis + loopDelay;
     }
 
   webSocket.loop();
