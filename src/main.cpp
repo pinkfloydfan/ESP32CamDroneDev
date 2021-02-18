@@ -1,3 +1,34 @@
+/*
+typedef enum {
+    FRAMESIZE_96X96,    // 96x96
+    FRAMESIZE_QQVGA,    // 160x120
+    FRAMESIZE_QCIF,     // 176x144
+    FRAMESIZE_HQVGA,    // 240x176
+    FRAMESIZE_240X240,  // 240x240
+    FRAMESIZE_QVGA,     // 320x240
+    FRAMESIZE_CIF,      // 400x296
+    FRAMESIZE_HVGA,     // 480x320
+    FRAMESIZE_VGA,      // 640x480
+    FRAMESIZE_SVGA,     // 800x600
+    FRAMESIZE_XGA,      // 1024x768
+    FRAMESIZE_HD,       // 1280x720
+    FRAMESIZE_SXGA,     // 1280x1024
+    FRAMESIZE_UXGA,     // 1600x1200
+    // 3MP Sensors
+    FRAMESIZE_FHD,      // 1920x1080
+    FRAMESIZE_P_HD,     //  720x1280
+    FRAMESIZE_P_3MP,    //  864x1536
+    FRAMESIZE_QXGA,     // 2048x1536
+    // 5MP Sensors
+    FRAMESIZE_QHD,      // 2560x1440
+    FRAMESIZE_WQXGA,    // 2560x1600
+    FRAMESIZE_P_FHD,    // 1080x1920
+    FRAMESIZE_QSXGA,    // 2560x1920
+    FRAMESIZE_INVALID
+} framesize_t;
+*/
+
+
 #include <iostream>
 
 #include <WiFi.h>
@@ -39,7 +70,7 @@ uint8_t ibusPacket [ibusPacketLength];
 //time counter for updating ibus signals
 uint32_t loopTime = 0;
 //time interval between camera and rc signal updates (ms)
-const uint8_t loopDelay = 100;
+const uint8_t loopDelay = 50;
 
 //TODO: improve this implementation
 bool wsClientConnected = false; 
@@ -150,8 +181,7 @@ void setupCamera() {
     s->set_brightness(s, 1);//up the blightness just a bit
     s->set_saturation(s, -2);//lower the saturation
   }
-  //drop down frame size for higher initial frame rate
-  s->set_framesize(s, FRAMESIZE_QVGA);
+
 
 #if defined(CAMERA_MODEL_M5STACK_WIDE)
   s->set_vflip(s, 1);
@@ -183,11 +213,8 @@ void sendImageBuffer(const uint8_t* imageBuffer, const size_t len) {
 
   //check if there's a websocket client connected - will need more rigour when scaling this for multiple aircraft
   if (wsClientConnected == true) {
-      Serial.printf("Sending image!");
 
-      //Serial.println(imageBuffer); 
-
-      //sends jpeg as binary 
+      //send the binary image buffer + length of the buffer
       webSocket.sendBIN(wsClientID, imageBuffer, len);
   }
 
@@ -204,10 +231,9 @@ void takeImage() {
     Serial.println("Could not capture image");
   } else {
     
-      //-> = access member buf from pointer *fb
+      //-> = access members buf (image buffer) and len (length of image buffer array) from pointer *fb
     const uint8_t *data = (const uint8_t *)fb->buf;
     const size_t len = fb -> len;
-    std::cout << data;
     sendImageBuffer(data, len); 
   }
 
@@ -222,6 +248,7 @@ void setupIbus() {
 
 }
 
+//TODO: perhaps flesh this function out to parse some 'headers' for websocket messages
 void processCommandArray(std::string input) {
 
     std::vector<int> vect;
@@ -323,7 +350,6 @@ void loop() {
         prepareibusPacket() ;
 
         Serial1.write(ibusPacket, ibusPacketLength);
-
 
         loopTime = currentMillis + loopDelay;
     }
