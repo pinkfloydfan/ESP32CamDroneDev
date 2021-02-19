@@ -1,4 +1,5 @@
 /*
+Just a helpful note to self regarding the camera resolutions you can set
 typedef enum {
     FRAMESIZE_96X96,    // 96x96
     FRAMESIZE_QQVGA,    // 160x120
@@ -39,6 +40,7 @@ typedef enum {
 #include <sstream>
 #include <vector>
 
+//Tells the ESP initialization code what camera we#'re using 
 #define CAMERA_MODEL_AI_THINKER
 #include "camera_pins.h"
 #include "esp_camera.h"
@@ -46,35 +48,32 @@ typedef enum {
 //MSP code for sending raw RC input frame
 #define MSP_CODE_RAWRC 200
 
-// Constants
 
-//Allocate GPIO12 to sbus tx
-//#define E_UART_TXD (GPIO_NUM_12)
-
+//Required to write serial data through a GPIO pin. The argument is the UART port being ustilised. 0 = UART 0, 1 = UART 1 etc.  
 HardwareSerial Serial_1(1);
-//#define SERIAL1_TX 12
 
+//How many RC channels we need to write to the flight controller. Needed for the MSP protocol checksum
 const int rcChannelNumber = 8;
-//WiFi AP
+//WiFi AP constants. 
 const char* ssid = "COVID-19 5G Tower";
 const char* password = "password";
 
-int uart_num; 
-
+//networking gibberish
 IPAddress local_IP(192,168,4,22);
 IPAddress gateway(192,168,4,9);
 IPAddress subnet(255,255,255,0);
 
-//MSP = AETR and 4 aux channels
+//The RC signal for each channel: Aileron/Elevator/Throttle/Rudder and 4 aux channels
 int rcChannels[8] = {1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500};
 
-
-
-//time counter for updating ibus signals
+//time counter for serial signal send loop
 uint32_t loopTime = 0;
-//time interval between camera and rc signal updates (ms) - 50 seems to be a 'safe' number without the camera exploding
+
+// (frequency)^-1 of main loop, during each loop a camera image is taken and the stored RC channels are written to the FC board.
+// 50ms seems to be a 'safe' number without the camera exploding
 const uint16_t loopDelay = 50;
 
+// how many bytes each MSP_SET_RAW_RC packet is. It really shouldn't be here.
 const int mspPacketLength = 22;
 
 uint8_t mspPacket [mspPacketLength]; 
@@ -152,7 +151,7 @@ void setupCamera() {
   //init with high specs to pre-allocate larger buffers
 
   /*
-  it appears the ESP32CAM may have PSRAM but we're using it to stream so potato quality is enforced. 
+  it appears the ESP32CAM may have PSRAM but we're using it to stream so potato quality is enforced and we do not use PSRAM. 
   if(psramFound()){
     Serial.printf("psram");
     config.frame_size = FRAMESIZE_UXGA;
@@ -171,7 +170,7 @@ void setupCamera() {
   */
 
     //early 2000s nokia phone camera quality
-    //tbf consider improving the comms so this can be adjusted from the client?
+    //tbf consider improving the websocket exchange so this can be adjusted from the client?
     config.frame_size = FRAMESIZE_QVGA;
     config.jpeg_quality = 32;
     config.fb_count = 1;
@@ -190,6 +189,8 @@ void setupCamera() {
     return;
   }
 
+
+  // code not needed but these s->*do something* functions are interesting 
   sensor_t * s = esp_camera_sensor_get();
   //initial sensors are flipped vertically and colors are a bit saturated
   if (s->id.PID == OV3660_PID) {
@@ -224,7 +225,7 @@ void setupAP() {
 
 }
 
-//sends an image buffer blob over the websocket. N.B. maybe binary will work better?
+//sends an image buffer blob over the websocket. This is currently a compressed JPEG binary.
 void sendImageBuffer(const uint8_t* imageBuffer, const size_t len) {
 
   //check if there's a websocket client connected - will need more rigour when scaling this for multiple aircraft
@@ -248,6 +249,7 @@ void takeImage() {
   } else {
     
       //-> = access members buf (image buffer) and len (length of image buffer array) from pointer *fb
+      // Initializes array from the image buffer and gets its length
     const uint8_t *data = (const uint8_t *)fb->buf;
     const size_t len = fb -> len;
     sendImageBuffer(data, len); 
@@ -256,7 +258,7 @@ void takeImage() {
 }
 
 
-// gives iBus packet the correct header bytes
+// gives MSP packet the correct header bytes  - candidate for refactoring
 void setupMSP() {
 
   //MSPPacket is for now hardcoded with the MSP_SET_RAW_RC message, should refactor asap. 
@@ -296,6 +298,8 @@ void processCommandArray(std::string input) {
       rcChannels[j] = vect[j];
     }
 }
+
+//TODO: Send function for websocket
 
 // Called when receiving any WebSocket message
 void onWebSocketEvent(uint8_t num,
