@@ -43,6 +43,8 @@ typedef enum {
 #include "camera_pins.h"
 #include "esp_camera.h"
 
+#define MSP_CODE_RAWRC 200
+
 // Constants
 
 //Allocate GPIO12 to sbus tx
@@ -66,11 +68,16 @@ IPAddress subnet(255,255,255,0);
 int rcChannels[14] = {1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500};
 
 
+
 uint8_t ibusPacket [ibusPacketLength];
 //time counter for updating ibus signals
 uint32_t loopTime = 0;
 //time interval between camera and rc signal updates (ms)
 const uint8_t loopDelay = 50;
+
+const int mspPacketLength = 22;
+
+uint8_t mspPacket [mspPacketLength]; 
 
 //TODO: improve this implementation
 bool wsClientConnected = false; 
@@ -103,6 +110,39 @@ void prepareibusPacket() {
 
   ibusPacket[ibusPacketLength-2] = checksumByte0;
   ibusPacket[ibusPacketLength-1] = checksumByte1;
+
+}
+
+
+//assume 14 channels like ibus i guess?
+void prepareMspRawRC()  {
+
+    mspPacket[0]       = '$';
+    mspPacket[1]       = 'M';
+    mspPacket[2]       = '<'; 
+    mspPacket[3]       = 16; 
+    mspPacket[4] = MSP_CODE_RAWRC;
+
+    for (int i = 0; i < rcChannelNumber; i++) {
+    uint16_t channelValue = rcChannels[i];
+
+    //little endian 
+
+      uint8_t byte0 = channelValue % 256;
+      uint8_t byte1 = channelValue / 256;
+
+      mspPacket[2*i + 5] = byte0;
+      mspPacket[2*i + 6] = byte1;
+
+    }
+
+    uint8_t checksum = 0;
+
+    for (int i = 3; i<mspPacketLength; i++) {
+      checksum ^= mspPacket[i];
+    }
+
+    mspPacket[mspPacketLength-1] = checksum;
 
 }
 
@@ -347,9 +387,9 @@ void loop() {
     
       if (currentMillis > loopTime) {
         takeImage() ;
-        prepareibusPacket() ;
+        prepareMspRawRC() ;
 
-        Serial1.write(ibusPacket, ibusPacketLength);
+        Serial1.write(mspPacket, mspPacketLength);
 
         loopTime = currentMillis + loopDelay;
     }
