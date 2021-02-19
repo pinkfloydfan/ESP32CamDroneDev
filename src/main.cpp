@@ -43,6 +43,7 @@ typedef enum {
 #include "camera_pins.h"
 #include "esp_camera.h"
 
+//MSP code for sending raw RC input frame
 #define MSP_CODE_RAWRC 200
 
 // Constants
@@ -53,7 +54,6 @@ typedef enum {
 HardwareSerial Serial_1(1);
 //#define SERIAL1_TX 12
 
-const int ibusPacketLength = 32;
 const int rcChannelNumber = 8;
 //WiFi AP
 const char* ssid = "COVID-19 5G Tower";
@@ -65,15 +65,15 @@ IPAddress local_IP(192,168,4,22);
 IPAddress gateway(192,168,4,9);
 IPAddress subnet(255,255,255,0);
 
-int rcChannels[14] = {1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500};
+//MSP = AETR and 4 aux channels
+int rcChannels[8] = {1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500};
 
 
 
-uint8_t ibusPacket [ibusPacketLength];
 //time counter for updating ibus signals
 uint32_t loopTime = 0;
-//time interval between camera and rc signal updates (ms)
-const uint8_t loopDelay = 50;
+//time interval between camera and rc signal updates (ms) - 50 seems to be a 'safe' number without the camera exploding
+const uint16_t loopDelay = 50;
 
 const int mspPacketLength = 22;
 
@@ -88,43 +88,13 @@ uint8_t wsClientID = 0;
 // also we've disabled CORS access control with the 2nd argument...
 WebSocketsServer webSocket = WebSocketsServer(80, "*");
 
-void prepareibusPacket() {
-  for (int i = 0; i < rcChannelNumber; i++) {
-    uint16_t channelValue = rcChannels[i];
 
-    //little endian
-
-    uint8_t byte0 = channelValue % 256;
-    uint8_t byte1 = channelValue / 256;
-
-    ibusPacket[2*i + 2] = byte0;
-    ibusPacket[2*i + 3] = byte1;
-  }
-  uint16_t total = 0xFFFF; 
-  //for calculating checksum - use 0xFFFF and subtract each byte from i = 0 -> i = packetlength-2 from it 
-  for (int i = 0; i<ibusPacketLength-2; i++) {
-    total -= ibusPacket[i];
-  }
-  uint8_t checksumByte0 = total % 256;
-  uint8_t checksumByte1 = total / 256;
-
-  ibusPacket[ibusPacketLength-2] = checksumByte0;
-  ibusPacket[ibusPacketLength-1] = checksumByte1;
-
-}
-
-
-//assume 14 channels like ibus i guess?
 void prepareMspRawRC()  {
 
-    mspPacket[0]       = '$';
-    mspPacket[1]       = 'M';
-    mspPacket[2]       = '<'; 
-    mspPacket[3]       = 16; 
-    mspPacket[4] = MSP_CODE_RAWRC;
 
     for (int i = 0; i < rcChannelNumber; i++) {
     uint16_t channelValue = rcChannels[i];
+
 
     //little endian 
 
@@ -136,13 +106,19 @@ void prepareMspRawRC()  {
 
     }
 
+
     uint8_t checksum = 0;
 
-    for (int i = 3; i<mspPacketLength; i++) {
+    //I SPENT HOURS DEBUGGING THIS ONLY TO REALISE I GOT THE CHECKSUM WRONG - mspPacketLength-1 is the correct iteration count. 
+    for (int i = 3; i<mspPacketLength-1; i++) {
       checksum ^= mspPacket[i];
     }
 
     mspPacket[mspPacketLength-1] = checksum;
+
+    for (int i = 0; i<mspPacketLength; i++) {
+      Serial.println(mspPacket[i]);
+    }
 
 }
 
@@ -281,10 +257,23 @@ void takeImage() {
 
 
 // gives iBus packet the correct header bytes
-void setupIbus() {
-  ibusPacket[0] = 0x20;
-  ibusPacket[1] = 0x40;
+void setupMSP() {
+
+  //MSPPacket is for now hardcoded with the MSP_SET_RAW_RC message, should refactor asap. 
+
+    mspPacket[0]       = '$';
+    mspPacket[1]       = 'M';
+    mspPacket[2]       = '<'; 
+    mspPacket[3]       = 16; 
+    mspPacket[4] = MSP_CODE_RAWRC;
+
+
+
+  //3rd parameter = rx GPIO, 4th = tx GPIO. 
    Serial1.begin(115200, SERIAL_8N1, 13, 12);
+
+   Serial2.begin(115200, SERIAL_8N1, 15, 14);
+
 
 }
 
@@ -358,6 +347,7 @@ void onWebSocketEvent(uint8_t num,
 
 void setup() {
 
+  
   // Start Serial monitor port
   Serial.begin(115200);
 
@@ -365,13 +355,12 @@ void setup() {
 
   setupAP();
 
-  setupIbus();
+  setupMSP();
 
   // Start WebSocket server and assign callback
   webSocket.begin();
   webSocket.onEvent(onWebSocketEvent);
 
-  //Setup IBUS output
 
 
 }
@@ -380,16 +369,23 @@ void loop() {
   
     uint32_t currentMillis = millis();
 
-    /*
-     * Here you can modify values of rcChannels while keeping it in 1000:2000 range
-     */
+    /* very dirty way to test if packet encoding is working correctly
+    for (int i=0 ; i<4 ; i++) {
+      rcChannels[i] = rand() % 1000 + 1000;
+    }
+    */
 
     
       if (currentMillis > loopTime) {
         takeImage() ;
         prepareMspRawRC() ;
 
+        //TODO: probably should put all the MSP-related functions in its own namespace 
         Serial1.write(mspPacket, mspPacketLength);
+        //Serial1.write({'$', 'M', '<', '0', 0x65, 0x65}, 6);
+
+        // int incomingByte = Serial2.read(); - TODO: utilise this for parsing IMU data
+        //Serial.println(incomingByte);
 
         loopTime = currentMillis + loopDelay;
     }
