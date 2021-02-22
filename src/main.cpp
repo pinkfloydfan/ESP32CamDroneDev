@@ -45,11 +45,12 @@ typedef enum {
 #include "camera_pins.h"
 #include "esp_camera.h"
 
-#include "msplib.h"
+#include "msplib.cpp"
 
 //MSP code for sending raw RC input frame
 #define MSP_CODE_RAWRC 200
 
+msplib::MspSender mspSender;
 
 
 //Required to write serial data through a GPIO pin. The argument is the UART port being ustilised. 0 = UART 0, 1 = UART 1 etc.  
@@ -269,9 +270,10 @@ void setupMSP() {
 
   //3rd parameter = rx GPIO, 4th = tx GPIO. 
    Serial1.begin(115200, SERIAL_8N1, 13, 12);
-
    Serial2.begin(115200, SERIAL_8N1, 15, 14);
-      
+
+   mspSender.setSerialPort(&Serial1);
+
 
 }
 
@@ -388,8 +390,8 @@ void loop() {
 
         //int* mspPacket = msplib::prepareRawRCPacket(rcChannels); //gets pointer to the array of 
         
-        msplib::writeRawRCPacket(rcChannels, &Serial1);
-        //Serial1.write({'$', 'M', '<', '0', 0x65, 0x65}, 6);
+        mspSender.writeRawRCPacket(rcChannels);
+        mspSender.writeAttitudeRequest();
 
         // int incomingByte = Serial2.read(); - TODO: utilise this for parsing IMU data
         //Serial.println(incomingByte);
