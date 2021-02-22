@@ -70,8 +70,8 @@ namespace msplib {
             }
 
             void writeAttitudeRequest() {
-
-                unsigned char mspPacket[] = {'$', 'M', '<', '0', 0x65, 0x65};
+                
+                unsigned char mspPacket[] = {'$', 'M', '<', 0x0, 0x6C, 0x6C};
 
                 mspPort->write(mspPacket, 6);
 
@@ -81,8 +81,77 @@ namespace msplib {
 
     class MspReceiver: public MspInterface {
 
-    };
+        #define MSP_HEADER_BEGIN 36;
 
+        public:
+        void readData() {
+            delay(100);
+
+            unsigned char count = 0;
+
+            int16_t roll;
+            int16_t pitch;
+            int16_t yaw;
+
+            while (mspPort->available()) {
+                //count += 1;
+                unsigned char c = mspPort->read();
+                Serial.println(c);
+                int count = 0;
+
+
+                if (c == 36) {
+
+                    count = 0;
+
+                } else {
+
+                    count += 1;
+
+                }
+
+                if (count == 4 && c == 108) {
+
+                    switch (count) {
+                    case 5:
+                        roll = c;
+                        break;
+                    case 6:
+                        roll <<= 8;
+                        roll += c;
+                        roll = (roll & 0xFF00) >> 8 | (roll & 0x00FF) << 8; // Reverse the order of bytes
+                        break;
+                    case 7:
+                        pitch += c;
+                        break;
+                    case 8:
+                        pitch <<= 8;
+                        pitch += c;
+                        pitch = (pitch & 0xFF00) >> 8 | (pitch & 0x00FF) << 8; // Reverse the order of bytes
+                        break;
+                    case 9:
+                        yaw += c;
+                        break;
+                    case 10:
+                        yaw <<= 8;
+                        yaw += c;
+                        yaw = (yaw & 0xFF00) >> 8 | (yaw & 0x00FF) << 8; // Reverse the order of bytes
+                        break;
+                }
+
+
+                }
+
+
+            }
+            
+            Serial.print("Roll: " + String(roll/10.0));
+            Serial.print(" Pitch: " + String(pitch/10.0));
+            Serial.println(" Yaw: " + String(yaw));
+            
+        }
+
+    };
 
 }
     

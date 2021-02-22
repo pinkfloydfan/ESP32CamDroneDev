@@ -51,6 +51,7 @@ typedef enum {
 #define MSP_CODE_RAWRC 200
 
 msplib::MspSender mspSender;
+msplib::MspReceiver mspReceiver;
 
 
 //Required to write serial data through a GPIO pin. The argument is the UART port being ustilised. 0 = UART 0, 1 = UART 1 etc.  
@@ -266,13 +267,13 @@ void takeImage() {
 // gives MSP packet the correct header bytes  - candidate for refactoring
 void setupMSP() {
 
-  //MSPPacket is for now hardcoded with the MSP_SET_RAW_RC message, should refactor asap. 
 
   //3rd parameter = rx GPIO, 4th = tx GPIO. 
    Serial1.begin(115200, SERIAL_8N1, 13, 12);
    Serial2.begin(115200, SERIAL_8N1, 15, 14);
 
    mspSender.setSerialPort(&Serial1);
+   mspReceiver.setSerialPort(&Serial2);
 
 
 }
@@ -392,6 +393,7 @@ void loop() {
         
         mspSender.writeRawRCPacket(rcChannels);
         mspSender.writeAttitudeRequest();
+        mspReceiver.readData();
 
         // int incomingByte = Serial2.read(); - TODO: utilise this for parsing IMU data
         //Serial.println(incomingByte);
