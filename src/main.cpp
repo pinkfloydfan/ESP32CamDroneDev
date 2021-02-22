@@ -45,8 +45,11 @@ typedef enum {
 #include "camera_pins.h"
 #include "esp_camera.h"
 
+#include "msplib.h"
+
 //MSP code for sending raw RC input frame
 #define MSP_CODE_RAWRC 200
+
 
 
 //Required to write serial data through a GPIO pin. The argument is the UART port being ustilised. 0 = UART 0, 1 = UART 1 etc.  
@@ -76,7 +79,7 @@ const uint16_t loopDelay = 50;
 // how many bytes each MSP_SET_RAW_RC packet is. It really shouldn't be here.
 const int mspPacketLength = 22;
 
-uint8_t mspPacket [mspPacketLength]; 
+//uint8_t mspPacket [mspPacketLength]; 
 
 //TODO: improve this implementation
 bool wsClientConnected = false; 
@@ -87,7 +90,7 @@ uint8_t wsClientID = 0;
 // also we've disabled CORS access control with the 2nd argument...
 WebSocketsServer webSocket = WebSocketsServer(80, "*");
 
-
+/*
 void prepareMspRawRC()  {
 
 
@@ -120,6 +123,7 @@ void prepareMspRawRC()  {
     }
 
 }
+*/
 
 //initialises OV2640, relies upon the pin definitions in camera_pins.h
 void setupCamera() { 
@@ -263,19 +267,11 @@ void setupMSP() {
 
   //MSPPacket is for now hardcoded with the MSP_SET_RAW_RC message, should refactor asap. 
 
-    mspPacket[0]       = '$';
-    mspPacket[1]       = 'M';
-    mspPacket[2]       = '<'; 
-    mspPacket[3]       = 16; 
-    mspPacket[4] = MSP_CODE_RAWRC;
-
-
-
   //3rd parameter = rx GPIO, 4th = tx GPIO. 
    Serial1.begin(115200, SERIAL_8N1, 13, 12);
 
    Serial2.begin(115200, SERIAL_8N1, 15, 14);
-
+      
 
 }
 
@@ -348,6 +344,10 @@ void onWebSocketEvent(uint8_t num,
   }
 }
 
+void queryOrientation() {
+
+}
+
 
 void setup() {
 
@@ -382,10 +382,13 @@ void loop() {
     
       if (currentMillis > loopTime) {
         takeImage() ;
-        prepareMspRawRC() ;
+        //prepareMspRawRC() ;
 
         //TODO: probably should put all the MSP-related functions in its own namespace 
-        Serial1.write(mspPacket, mspPacketLength);
+
+        //int* mspPacket = msplib::prepareRawRCPacket(rcChannels); //gets pointer to the array of 
+        
+        msplib::writeRawRCPacket(rcChannels, &Serial1);
         //Serial1.write({'$', 'M', '<', '0', 0x65, 0x65}, 6);
 
         // int incomingByte = Serial2.read(); - TODO: utilise this for parsing IMU data
