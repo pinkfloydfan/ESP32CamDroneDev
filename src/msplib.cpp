@@ -88,9 +88,9 @@ namespace msplib {
         void readData() { 
             delay(100);
 
-            int16_t roll;
-            int16_t pitch;
-            int16_t yaw;
+            int16_t roll = 0;
+            int16_t pitch = 0;
+            int16_t yaw = 0;
 
             int count = 0;
             bool attitudeMessageDetected = false; 
@@ -148,7 +148,7 @@ namespace msplib {
                             roll = (roll & 0xFF00) >> 8 | (roll & 0x00FF) << 8; // Reverse the order of bytes
                             break;
                         case 7:
-                            pitch += c;
+                            pitch = c;
                             break;
                         case 8:
                             pitch <<= 8;
@@ -156,7 +156,7 @@ namespace msplib {
                             pitch = (pitch & 0xFF00) >> 8 | (pitch & 0x00FF) << 8; // Reverse the order of bytes
                             break;
                         case 9:
-                            yaw += c;
+                            yaw = c;
                             break;
                         case 10: //final byte, hence print the roll/pitch/yaw value (and in the future trigger a callback to send them )
                             Serial.println("bois we at 10");
