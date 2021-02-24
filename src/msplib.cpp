@@ -84,70 +84,106 @@ namespace msplib {
         #define MSP_HEADER_BEGIN 36;
 
         public:
-        void readData() {
+        //todo: this can probably take a message code as a function parameter and be extended to read more generic MSP messages
+        void readData() { 
             delay(100);
-
-            unsigned char count = 0;
 
             int16_t roll;
             int16_t pitch;
             int16_t yaw;
 
+            int count = 0;
+            bool attitudeMessageDetected = false; 
+
             while (mspPort->available()) {
                 //count += 1;
                 unsigned char c = mspPort->read();
                 Serial.println(c);
-                int count = 0;
+
+
+                int messageLength; 
 
 
                 if (c == 36) {
 
+                    Serial.println("MSP begin character detected");
+                    //resets the byte counter when the character $ (indicating MSP packet start) is detected
                     count = 0;
+                    //Boolean that is TRUE when the 4th character of the MSP message corresponds to 108 = ATTITUDE
+                    attitudeMessageDetected = false; 
 
                 } else {
-
+                    
+                    //increments the byte counter
                     count += 1;
 
                 }
 
-                if (count == 4 && c == 108) {
+
+                if (count == 4) {
+
+                    Serial.println(" Message type byte: " + String(c));
+
+                    if (c == 108) {
+                
+                        attitudeMessageDetected = true; 
+                        Serial.println("Code 108 detected");
+
+                    }
+
+
+                }
+
+                if (attitudeMessageDetected == true) {
+
+                    Serial.println("Reading attitude packet");
 
                     switch (count) {
-                    case 5:
-                        roll = c;
-                        break;
-                    case 6:
-                        roll <<= 8;
-                        roll += c;
-                        roll = (roll & 0xFF00) >> 8 | (roll & 0x00FF) << 8; // Reverse the order of bytes
-                        break;
-                    case 7:
-                        pitch += c;
-                        break;
-                    case 8:
-                        pitch <<= 8;
-                        pitch += c;
-                        pitch = (pitch & 0xFF00) >> 8 | (pitch & 0x00FF) << 8; // Reverse the order of bytes
-                        break;
-                    case 9:
-                        yaw += c;
-                        break;
-                    case 10:
-                        yaw <<= 8;
-                        yaw += c;
-                        yaw = (yaw & 0xFF00) >> 8 | (yaw & 0x00FF) << 8; // Reverse the order of bytes
-                        break;
-                }
+                        case 5:
+                            roll = c;
+                            break;
+                        case 6:
+                            roll <<= 8;
+                            roll += c;
+                            roll = (roll & 0xFF00) >> 8 | (roll & 0x00FF) << 8; // Reverse the order of bytes
+                            break;
+                        case 7:
+                            pitch += c;
+                            break;
+                        case 8:
+                            pitch <<= 8;
+                            pitch += c;
+                            pitch = (pitch & 0xFF00) >> 8 | (pitch & 0x00FF) << 8; // Reverse the order of bytes
+                            break;
+                        case 9:
+                            yaw += c;
+                            break;
+                        case 10: //final byte, hence print the roll/pitch/yaw value (and in the future trigger a callback to send them )
+                            Serial.println("bois we at 10");
+
+                            yaw <<= 8;
+                            yaw += c;
+                            yaw = (yaw & 0xFF00) >> 8 | (yaw & 0x00FF) << 8; // Reverse the order of bytes  
+
+                            
+                            Serial.println("Roll: " + String(roll/10.0));
+                            Serial.println(" Pitch: " + String(pitch/10.0));
+                            Serial.println(" Yaw: " + String(yaw));                          
+                
+
+                            break;
+                    }
 
 
                 }
+
+                //Serial.println(" byte count: " + String(count));
+
 
 
             }
             
-            Serial.print("Roll: " + String(roll/10.0));
-            Serial.print(" Pitch: " + String(pitch/10.0));
-            Serial.println(" Yaw: " + String(yaw));
+
             
         }
 

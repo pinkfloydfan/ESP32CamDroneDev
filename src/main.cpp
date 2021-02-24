@@ -76,7 +76,7 @@ uint32_t loopTime = 0;
 
 // (frequency)^-1 of main loop, during each loop a camera image is taken and the stored RC channels are written to the FC board.
 // 50ms seems to be a 'safe' number without the camera exploding
-const uint16_t loopDelay = 50;
+const uint16_t loopDelay = 200;
 
 // how many bytes each MSP_SET_RAW_RC packet is. It really shouldn't be here.
 const int mspPacketLength = 22;
@@ -368,6 +368,8 @@ void setup() {
   webSocket.begin();
   webSocket.onEvent(onWebSocketEvent);
 
+  
+
 
 
 }
@@ -391,9 +393,10 @@ void loop() {
 
         //int* mspPacket = msplib::prepareRawRCPacket(rcChannels); //gets pointer to the array of 
         
-        mspSender.writeRawRCPacket(rcChannels);
+        //mspSender.writeRawRCPacket(rcChannels);
         mspSender.writeAttitudeRequest();
         mspReceiver.readData();
+
 
         // int incomingByte = Serial2.read(); - TODO: utilise this for parsing IMU data
         //Serial.println(incomingByte);
