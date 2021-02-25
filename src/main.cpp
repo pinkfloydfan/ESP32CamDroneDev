@@ -45,22 +45,16 @@ typedef enum {
 #include "camera_pins.h"
 #include "esp_camera.h"
 
+//Variables for the MSP library
 #include "msplib.cpp"
-
-//MSP code for sending raw RC input frame
-#define MSP_CODE_RAWRC 200
-
 msplib::MspSender mspSender;
 msplib::MspReceiver mspReceiver;
 
-
-//Required to write serial data through a GPIO pin. The argument is the UART port being ustilised. 0 = UART 0, 1 = UART 1 etc.  
-HardwareSerial Serial_1(1);
-
 //How many RC channels we need to write to the flight controller. Needed for the MSP protocol checksum
 const int rcChannelNumber = 8;
+
 //WiFi AP constants. 
-const char* ssid = "COVID-19 5G Tower";
+const char* ssid = "drone";
 const char* password = "password";
 
 //networking gibberish
@@ -76,7 +70,7 @@ uint32_t loopTime = 0;
 
 // (frequency)^-1 of main loop, during each loop a camera image is taken and the stored RC channels are written to the FC board.
 // 50ms seems to be a 'safe' number without the camera exploding
-const uint16_t loopDelay = 200;
+const uint16_t loopDelay = 50;
 
 // how many bytes each MSP_SET_RAW_RC packet is. It really shouldn't be here.
 const int mspPacketLength = 22;
@@ -88,46 +82,11 @@ bool wsClientConnected = false;
 //webSocket client ID defaults to 0 
 uint8_t wsClientID = 0;
 
-// Globals 
-// also we've disabled CORS access control with the 2nd argument...
+//Initialises websocket server
 WebSocketsServer webSocket = WebSocketsServer(80, "*");
 
-/*
-void prepareMspRawRC()  {
 
-
-    for (int i = 0; i < rcChannelNumber; i++) {
-    uint16_t channelValue = rcChannels[i];
-
-
-    //little endian 
-
-      uint8_t byte0 = channelValue % 256;
-      uint8_t byte1 = channelValue / 256;
-
-      mspPacket[2*i + 5] = byte0;
-      mspPacket[2*i + 6] = byte1;
-
-    }
-
-
-    uint8_t checksum = 0;
-
-    //I SPENT HOURS DEBUGGING THIS ONLY TO REALISE I GOT THE CHECKSUM WRONG - mspPacketLength-1 is the correct iteration count. 
-    for (int i = 3; i<mspPacketLength-1; i++) {
-      checksum ^= mspPacket[i];
-    }
-
-    mspPacket[mspPacketLength-1] = checksum;
-
-    for (int i = 0; i<mspPacketLength; i++) {
-      Serial.println(mspPacket[i]);
-    }
-
-}
-*/
-
-//initialises OV2640, relies upon the pin definitions in camera_pins.h
+//initialises OV2640 camera, relies upon the pin definitions in camera_pins.h
 void setupCamera() { 
   Serial.printf("attempting to setup camera...");
 
@@ -347,11 +306,6 @@ void onWebSocketEvent(uint8_t num,
   }
 }
 
-void queryOrientation() {
-
-}
-
-
 void setup() {
 
   
@@ -368,39 +322,21 @@ void setup() {
   webSocket.begin();
   webSocket.onEvent(onWebSocketEvent);
 
-  
-
-
-
 }
 
 void loop() {
-  
+
+    //start time counter
     uint32_t currentMillis = millis();
-
-    /* very dirty way to test if packet encoding is working correctly
-    for (int i=0 ; i<4 ; i++) {
-      rcChannels[i] = rand() % 1000 + 1000;
-    }
-    */
-
     
       if (currentMillis > loopTime) {
-        takeImage() ;
-        //prepareMspRawRC() ;
 
-        //TODO: probably should put all the MSP-related functions in its own namespace 
-
-        //int* mspPacket = msplib::prepareRawRCPacket(rcChannels); //gets pointer to the array of 
-        
-        //mspSender.writeRawRCPacket(rcChannels);
+        takeImage(); 
+        mspSender.writeRawRCPacket(rcChannels);
         mspSender.writeAttitudeRequest();
         mspReceiver.readData();
 
-
-        // int incomingByte = Serial2.read(); - TODO: utilise this for parsing IMU data
-        //Serial.println(incomingByte);
-
+        //sets the frequency in a non blocking way
         loopTime = currentMillis + loopDelay;
     }
 
