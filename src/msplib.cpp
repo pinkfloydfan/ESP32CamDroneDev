@@ -98,15 +98,12 @@ namespace msplib {
             while (mspPort->available()) {
                 //count += 1;
                 unsigned char c = mspPort->read();
-                Serial.println(c);
 
-
-                int messageLength; 
-
+                //int messageLength; 
 
                 if (c == 36) {
 
-                    Serial.println("MSP begin character detected");
+                    //Serial.println("MSP begin character detected");
                     //resets the byte counter when the character $ (indicating MSP packet start) is detected
                     count = 0;
                     //Boolean that is TRUE when the 4th character of the MSP message corresponds to 108 = ATTITUDE
@@ -122,12 +119,12 @@ namespace msplib {
 
                 if (count == 4) {
 
-                    Serial.println(" Message type byte: " + String(c));
+                    //Serial.println(" Message type byte: " + String(c));
 
                     if (c == 108) {
                 
                         attitudeMessageDetected = true; 
-                        Serial.println("Code 108 detected");
+                        //Serial.println("Code 108 detected");
 
                     }
 
@@ -136,7 +133,7 @@ namespace msplib {
 
                 if (attitudeMessageDetected == true) {
 
-                    Serial.println("Reading attitude packet");
+                    //Serial.println("Reading attitude packet");
 
                     switch (count) {
                         case 5:
@@ -159,7 +156,7 @@ namespace msplib {
                             yaw = c;
                             break;
                         case 10: //final byte, hence print the roll/pitch/yaw value (and in the future trigger a callback to send them )
-                            Serial.println("bois we at 10");
+                            //Serial.println("bois we at 10");
 
                             yaw <<= 8;
                             yaw += c;
@@ -179,11 +176,7 @@ namespace msplib {
 
                 //Serial.println(" byte count: " + String(count));
 
-
-
             }
-            
-
             
         }
 
