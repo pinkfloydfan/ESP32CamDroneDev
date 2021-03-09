@@ -54,8 +54,8 @@ msplib::MspReceiver mspReceiver;
 const int rcChannelNumber = 8;
 
 //WiFi AP constants. 
-const char* ssid = "drone";
-const char* password = "password";
+const char* ssid = "VM1013606";
+const char* password = "qxmm5ssGpfgw";
 
 //networking gibberish
 IPAddress local_IP(192,168,4,22);
@@ -177,16 +177,8 @@ void setupCamera() {
 //set up wifi access point
 void setupAP() {
 
-  Serial.print("Setting soft-AP configuration ... ");
-  Serial.println(WiFi.softAPConfig(local_IP, gateway, subnet) ? "Ready" : "Failed!");
+    WiFi.begin(ssid, password);
 
-  // create access point 
-  Serial.println("Creating AP");
-  WiFi.softAP(ssid, password, 1, false, 4);
-  // Print our IP address
-  Serial.println("Connected!");
-  Serial.print("My IP address: ");
-  Serial.println(WiFi.softAPIP());
 
 }
 
