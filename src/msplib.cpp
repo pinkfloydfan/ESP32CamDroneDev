@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include <arduino.h>
+//#include <arduino.h>
 #include <HardwareSerial.h>
 
 namespace msplib {
