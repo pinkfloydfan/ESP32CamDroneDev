@@ -50,12 +50,20 @@ typedef enum {
 msplib::MspSender mspSender;
 msplib::MspReceiver mspReceiver;
 
+
+
 //How many RC channels we need to write to the flight controller. Needed for the MSP protocol checksum
 const int rcChannelNumber = 8;
 
 //WiFi AP constants. 
-const char* ssid = "drone";
-const char* password = "password";
+
+const bool APMode = true; //choose between access point or connect to wifi network
+
+const char* ap_ssid = "drone";
+const char* ap_password = "password";
+
+const char* ssid = "VM1013606";
+const char* password = "qxmm5ssGpfgw";
 
 //networking gibberish
 IPAddress local_IP(192,168,4,22);
@@ -177,16 +185,26 @@ void setupCamera() {
 //set up wifi access point
 void setupAP() {
 
-  Serial.print("Setting soft-AP configuration ... ");
-  Serial.println(WiFi.softAPConfig(local_IP, gateway, subnet) ? "Ready" : "Failed!");
+  if (APMode == true) {
 
-  // create access point 
-  Serial.println("Creating AP");
-  WiFi.softAP(ssid, password, 1, false, 4);
-  // Print our IP address
-  Serial.println("Connected!");
-  Serial.print("My IP address: ");
-  Serial.println(WiFi.softAPIP());
+    Serial.print("Setting soft-AP configuration ... ");
+    Serial.println(WiFi.softAPConfig(local_IP, gateway, subnet) ? "Ready" : "Failed!");
+
+    // create access point 
+    Serial.println("Creating AP");
+    WiFi.softAP(ap_ssid, ap_password, 1, false, 4);
+    // Print our IP address
+    Serial.println("Connected!");
+    Serial.print("My IP address: ");
+    Serial.println(WiFi.softAPIP());
+
+  } else {
+
+    WiFi.begin(ssid, password);
+
+  }
+
+
 
 }
 
