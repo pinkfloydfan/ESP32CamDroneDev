@@ -28,7 +28,7 @@ namespace msplib {
 
         public:
 
-            void writeRawRCPacket(int *rcChannels) {
+            void writeRawRCPacket(volatile int *rcChannels) {
 
                 unsigned char mspPacket[rawRCPacketWidth];
 

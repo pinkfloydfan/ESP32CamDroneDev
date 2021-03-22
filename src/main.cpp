@@ -50,7 +50,9 @@ typedef enum {
 msplib::MspSender mspSender;
 msplib::MspReceiver mspReceiver;
 
+//DUAL CORE BABY
 
+TaskHandle_t Core0TaskHandle;
 
 //How many RC channels we need to write to the flight controller. Needed for the MSP protocol checksum
 const int rcChannelNumber = 8;
@@ -71,7 +73,7 @@ IPAddress gateway(192,168,4,9);
 IPAddress subnet(255,255,255,0);
 
 //The RC signal for each channel: Aileron/Elevator/Throttle/Rudder and 4 aux channels
-int rcChannels[8] = {1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500};
+volatile int rcChannels[8] = {1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500};
 
 //time counter for serial signal send loop
 uint32_t loopTime = 0;
@@ -144,7 +146,7 @@ void setupCamera() {
 
     //early 2000s nokia phone camera quality
     //tbf consider improving the websocket exchange so this can be adjusted from the client?
-    config.frame_size = FRAMESIZE_QVGA;
+    config.frame_size = FRAMESIZE_VGA;
     config.jpeg_quality = 10;
     config.fb_count = 1;
 
@@ -309,6 +311,10 @@ void onWebSocketEvent(uint8_t num,
       Serial.print(wsClientID);
       Serial.printf("[%u] Text: %s\n", num, payload);
       processCommandArray((const char*)payload);
+
+      
+      mspSender.writeRawRCPacket(rcChannels);
+      
       //webSocket.sendTXT(num, payload);
       break;
 
@@ -324,6 +330,25 @@ void onWebSocketEvent(uint8_t num,
   }
 }
 
+void Core0Task(void *pvParameters) {
+
+    // Start WebSocket server and assign callback
+    webSocket.begin();
+    webSocket.onEvent(onWebSocketEvent);
+
+    for(;;) {
+
+      mspSender.writeAttitudeRequest();
+      mspReceiver.readData();
+
+      
+      webSocket.loop();
+
+
+    }
+
+}
+
 void setup() {
 
   
@@ -336,9 +361,13 @@ void setup() {
 
   setupMSP();
 
-  // Start WebSocket server and assign callback
-  webSocket.begin();
-  webSocket.onEvent(onWebSocketEvent);
+  xTaskCreatePinnedToCore(Core0Task,
+                          "Core0Task",
+                          10000,
+                          NULL,
+                          5,
+                          &Core0TaskHandle,
+                          0);
 
 }
 
@@ -350,13 +379,9 @@ void loop() {
       if (currentMillis > loopTime) {
 
         takeImage(); 
-        mspSender.writeRawRCPacket(rcChannels);
-        mspSender.writeAttitudeRequest();
-        mspReceiver.readData();
 
         //sets the frequency in a non blocking way
         loopTime = currentMillis + loopDelay;
     }
 
-  webSocket.loop();
 }
