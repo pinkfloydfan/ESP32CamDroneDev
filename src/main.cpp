@@ -145,7 +145,7 @@ void setupCamera() {
     //early 2000s nokia phone camera quality
     //tbf consider improving the websocket exchange so this can be adjusted from the client?
     config.frame_size = FRAMESIZE_QVGA;
-    config.jpeg_quality = 32;
+    config.jpeg_quality = 10;
     config.fb_count = 1;
 
 
