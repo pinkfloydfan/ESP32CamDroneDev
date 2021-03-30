@@ -45,6 +45,9 @@ typedef enum {
 #include "camera_pins.h"
 #include "esp_camera.h"
 
+#include "ArduinoJson.h"
+#include "base64.h"
+
 //Variables for the MSP library
 #include "msplib.cpp"
 msplib::MspSender mspSender;
@@ -237,6 +240,9 @@ void takeImage() {
       // Initializes array from the image buffer and gets its length
     const uint8_t *data = (const uint8_t *)fb->buf;
     const size_t len = fb -> len;
+
+    const String base64str = base64::encode(data, len);
+    //Serial.println(base64str);
     sendImageBuffer(data, len); 
   }
 
@@ -339,8 +345,32 @@ void Core0Task(void *pvParameters) {
     for(;;) {
 
       mspSender.writeAttitudeRequest();
-      mspReceiver.readData();
+      
+      mspSender.writeIMURequest();
+      
+      int16_t* orientation;
+      int16_t* imuData;
 
+      
+      orientation = mspReceiver.readMSPOrientation();
+      imuData = mspReceiver.readMSPIMU();
+
+      /*
+      Serial.println(" Roll: " + String(orientation[0]/10.0));
+      Serial.println(" Pitch: " + String(orientation[1]/10.0));
+      Serial.println(" Yaw: " + String(orientation[2]));  
+
+      Serial.println(" accx: " + String(imuData[0]));
+      Serial.println(" accy: " + String(imuData[1]));
+      Serial.println(" accz: " + String(imuData[2]));     
+
+      Serial.println(" gyrx: " + String(imuData[3]));
+      Serial.println(" gyry: " + String(imuData[4]));
+      Serial.println(" gyrz: " + String(imuData[5]));    
+      */
+
+
+      
       
       webSocket.loop();
 

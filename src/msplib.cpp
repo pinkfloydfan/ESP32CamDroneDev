@@ -77,23 +77,37 @@ namespace msplib {
 
             }
 
+            void writeIMURequest() {
+
+                unsigned char mspPacket[] = {'$', 'M', '<', 0x0, 0x66, 0x66};
+
+                mspPort->write(mspPacket, 6);
+
+            }
+
     };
 
     class MspReceiver: public MspInterface {
 
-        #define MSP_HEADER_BEGIN 36;
+        #define MSP_HEADER_BEGIN 36
+        #define MSP_ATTITUDE 108
+        #define MSP_IMU 102
 
         public:
+
+        //Function to read roll, pitch, yaw messages from the serial port by detecting the right MSP code
         //todo: this can probably take a message code as a function parameter and be extended to read more generic MSP messages
-        void readData() { 
-            delay(100);
+        int16_t* readMSPOrientation() { 
+
 
             int16_t roll = 0;
             int16_t pitch = 0;
             int16_t yaw = 0;
 
+            delay(20);
+
             int count = 0;
-            bool attitudeMessageDetected = false; 
+            int messageType = 0; 
 
             while (mspPort->available()) {
                 //count += 1;
@@ -101,13 +115,12 @@ namespace msplib {
 
                 //int messageLength; 
 
-                if (c == 36) {
+                if (c == MSP_HEADER_BEGIN) {
 
-                    //Serial.println("MSP begin character detected");
                     //resets the byte counter when the character $ (indicating MSP packet start) is detected
                     count = 0;
                     //Boolean that is TRUE when the 4th character of the MSP message corresponds to 108 = ATTITUDE
-                    attitudeMessageDetected = false; 
+                    messageType = 0; 
 
                 } else {
                     
@@ -121,19 +134,11 @@ namespace msplib {
 
                     //Serial.println(" Message type byte: " + String(c));
 
-                    if (c == 108) {
-                
-                        attitudeMessageDetected = true; 
-                        //Serial.println("Code 108 detected");
-
-                    }
-
+                    messageType = c;
 
                 }
 
-                if (attitudeMessageDetected == true) {
-
-                    //Serial.println("Reading attitude packet");
+                if (messageType == MSP_ATTITUDE) {
 
                     switch (count) {
                         case 5:
@@ -152,7 +157,7 @@ namespace msplib {
                             pitch += c;
                             pitch = (pitch & 0xFF00) >> 8 | (pitch & 0x00FF) << 8; // Reverse the order of bytes
                             break;
-                        case 9:
+                        case 9:        
                             yaw = c;
                             break;
                         case 10: //final byte, hence print the roll/pitch/yaw value (and in the future trigger a callback to send them )
@@ -162,21 +167,156 @@ namespace msplib {
                             yaw += c;
                             yaw = (yaw & 0xFF00) >> 8 | (yaw & 0x00FF) << 8; // Reverse the order of bytes  
 
+                            static int16_t orientation[3];
                             
-                            Serial.println("Roll: " + String(roll/10.0));
-                            Serial.println(" Pitch: " + String(pitch/10.0));
-                            Serial.println(" Yaw: " + String(yaw));                          
-                
+                            orientation[0] = roll;
+                            orientation[1] = pitch;
+                            orientation[2] = yaw;
 
-                            break;
+                            return orientation;
+
+                            //break;
                     }
 
+                
+                //Serial.println(" byte count: " + String(count));
 
                 }
 
+            }   
+
+            return(0); 
+            
+        }
+
+        int16_t* readMSPIMU() { 
+            delay(20);
+
+            int count = 0;
+            int messageType = 0; 
+
+            int16_t accx = 0;
+            int16_t accy = 0;
+            int16_t accz = 0;
+
+            int16_t gyrx = 0;
+            int16_t gyry = 0;
+            int16_t gyrz = 0;
+
+            while (mspPort->available()) {
+                //count += 1;
+                unsigned char c = mspPort->read();
+
+                //int messageLength; 
+
+                if (c == MSP_HEADER_BEGIN) {
+
+                    //Serial.println("MSP begin character detected");
+                    //resets the byte counter when the character $ (indicating MSP packet start) is detected
+                    count = 0;
+                    //Boolean that is TRUE when the 4th character of the MSP message corresponds to 108 = ATTITUDE
+                    messageType = 0; 
+
+                } else {
+                    
+                    //increments the byte counter
+                    count += 1;
+
+                }
+
+
+                if (count == 4) {
+
+                    //Serial.println(" Message type byte: " + String(c));
+
+                    messageType = c;
+
+                }
+
+                if (messageType == MSP_IMU) {
+
+ 
+                    //Serial.println("Reading imu packet");
+
+                    switch (count) {
+                        case 5:
+                            accx = c;
+                            break;
+                        case 6:
+                            accx <<= 8;
+                            accx += c;
+                            accx = (accx & 0xFF00) >> 8 | (accx & 0x00FF) << 8; // Reverse the order of bytes
+                            break;
+                        case 7:
+                            accy = c;
+                            break;
+                        case 8:
+                            accy <<= 8;
+                            accy += c;
+                            accy = (accy & 0xFF00) >> 8 | (accy & 0x00FF) << 8; // Reverse the order of bytes
+                            break;
+                        case 9:        
+                            accz = c;
+                            break;
+                        case 10: 
+                            accz <<= 8;
+                            accz += c;
+                            accz = (accz & 0xFF00) >> 8 | (accz & 0x00FF) << 8; // Reverse the order of bytes  
+                        case 11:
+                            gyrx = c;
+                            break;
+                        case 12:
+                            gyrx <<= 8;
+                            gyrx += c;
+                            gyrx = (gyrx & 0xFF00) >> 8 | (gyrx & 0x00FF) << 8; // Reverse the order of bytes
+                            break;
+                        case 13:
+                            gyry = c;
+                            break;
+                        case 14:
+                            gyry <<= 8;
+                            gyry += c;
+                            gyry = (gyry & 0xFF00) >> 8 | (gyry & 0x00FF) << 8; // Reverse the order of bytes
+                            break;
+                        case 15:        
+                            gyrz = c;
+                            break;
+                        case 16: 
+                            gyrz <<= 8;
+                            gyrz += c;
+                            gyrz = (gyrz & 0xFF00) >> 8 | (gyrz & 0x00FF) << 8; // Reverse the order of bytes  
+
+                            static int16_t imuData[6];
+                            
+                            imuData[0] = accx;
+                            imuData[1] = accy;
+                            imuData[2] = accz;
+                            imuData[3] = gyrx;
+                            imuData[4] = gyry;
+                            imuData[5] = gyrz;
+
+                            /*
+                            Serial.println(" accx: " + String(imuData[0]));
+                            Serial.println(" accy: " + String(imuData[1]));
+                            Serial.println(" accz: " + String(imuData[2]));     
+
+                            Serial.println(" gyrx: " + String(imuData[3]));
+                            Serial.println(" gyry: " + String(imuData[4]));
+                            Serial.println(" gyrz: " + String(imuData[5]));  
+                            */  
+
+                            return imuData;
+
+                    }
+
+                
                 //Serial.println(" byte count: " + String(count));
 
-            }
+                }
+
+            }   
+
+            return(0); 
             
         }
 
