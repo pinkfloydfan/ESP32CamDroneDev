@@ -2,6 +2,8 @@
     "files.associations": {
         "string": "cpp",
         "cstddef": "cpp",
-        "*.tcc": "cpp"
+        "*.tcc": "cpp",
+        "sstream": "cpp",
+        "array": "cpp"
     }
 }

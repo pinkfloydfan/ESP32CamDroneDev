@@ -45,6 +45,7 @@ typedef enum {
 #include "camera_pins.h"
 #include "esp_camera.h"
 
+#include "StreamUtils.h"
 #include "ArduinoJson.h"
 #include "base64.h"
 
@@ -213,6 +214,7 @@ void setupAP() {
 
 }
 
+
 //sends an image buffer blob over the websocket. This is currently a compressed JPEG binary.
 void sendImageBuffer(const uint8_t* imageBuffer, const size_t len) {
 
@@ -228,7 +230,7 @@ void sendImageBuffer(const uint8_t* imageBuffer, const size_t len) {
 
 
 //attempts to access ESP camera and get its file buffer
-void takeImage() {
+void takeAndSendImage() {
   //*fb is pointer to image data
   camera_fb_t *fb = esp_camera_fb_get(); 
 
@@ -247,6 +249,42 @@ void takeImage() {
   }
 
 }
+
+void sendTelemetry(volatile int16_t* result) {
+
+  if (result) {
+    std::ostringstream os; 
+
+    for (int i = 0; 8; i++) {
+      os << result[i];
+    }
+
+    std::string s = os.str();
+    const char* cstr = s.c_str();
+
+    Serial.println(cstr);
+
+  //sends the telemetry information as a JSON over websockets
+    
+    //check if there's a websocket client connected - will need more rigour when scaling this for multiple aircraft
+    if (wsClientConnected == true) {
+      Serial.println("nuh send");
+
+        //send the binary image buffer + length of the buffer
+        webSocket.sendTXT(wsClientID, cstr);
+    }
+  
+
+  } else {
+    Serial.println("null pointer!");
+  }
+
+
+
+
+}
+
+
 
 
 // gives MSP packet the correct header bytes  - candidate for refactoring
@@ -307,15 +345,19 @@ void onWebSocketEvent(uint8_t num,
         wsClientConnected = true;
         wsClientID = num;
         IPAddress ip = webSocket.remoteIP(num);
+        /*
         Serial.printf("[%u] Connection from ", num);
         Serial.println(ip.toString());
+        */
       }
       break;
 
     case WStype_TEXT:
       wsClientID = num;
+      /*
       Serial.print(wsClientID);
       Serial.printf("[%u] Text: %s\n", num, payload);
+      */
       processCommandArray((const char*)payload);
 
       
@@ -338,40 +380,25 @@ void onWebSocketEvent(uint8_t num,
 
 void Core0Task(void *pvParameters) {
 
+
     // Start WebSocket server and assign callback
     webSocket.begin();
     webSocket.onEvent(onWebSocketEvent);
 
+
+
     for(;;) {
 
       mspSender.writeAttitudeRequest();
-      
       mspSender.writeIMURequest();
-      
-      int16_t* orientation;
-      int16_t* imuData;
 
-      
-      orientation = mspReceiver.readMSPOrientation();
-      imuData = mspReceiver.readMSPIMU();
-
-      /*
-      Serial.println(" Roll: " + String(orientation[0]/10.0));
-      Serial.println(" Pitch: " + String(orientation[1]/10.0));
-      Serial.println(" Yaw: " + String(orientation[2]));  
-
-      Serial.println(" accx: " + String(imuData[0]));
-      Serial.println(" accy: " + String(imuData[1]));
-      Serial.println(" accz: " + String(imuData[2]));     
-
-      Serial.println(" gyrx: " + String(imuData[3]));
-      Serial.println(" gyry: " + String(imuData[4]));
-      Serial.println(" gyrz: " + String(imuData[5]));    
-      */
+      mspReceiver.readMSPOutput();
 
 
-      
-      
+
+
+      delay(50);
+
       webSocket.loop();
 
 
@@ -408,7 +435,13 @@ void loop() {
     
       if (currentMillis > loopTime) {
 
-        takeImage(); 
+        takeAndSendImage(); 
+
+        mspReceiver.getAttitude();
+
+
+        
+        //sendTelemetry(mspReceiver.getAttitude());
 
         //sets the frequency in a non blocking way
         loopTime = currentMillis + loopDelay;
