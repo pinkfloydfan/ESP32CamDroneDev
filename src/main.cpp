@@ -250,44 +250,24 @@ void takeAndSendImage() {
 
 }
 
-void sendTelemetry(volatile int16_t* result) {
+// polls msplib for the attitude information and then sends it as a string over websockets
+void getAndSendAttitude() {
 
-  if (result) {
-    std::ostringstream os; 
-
-    for (int i = 0; 8; i++) {
-      os << result[i];
-    }
-
-    std::string s = os.str();
-    const char* cstr = s.c_str();
-
-    Serial.println(cstr);
-
-  //sends the telemetry information as a JSON over websockets
+  String attitudeString = mspReceiver.getAttitude();
+  //Serial.println(attitudeString);
     
     //check if there's a websocket client connected - will need more rigour when scaling this for multiple aircraft
-    if (wsClientConnected == true) {
-      Serial.println("nuh send");
+  if (wsClientConnected == true) {
 
-        //send the binary image buffer + length of the buffer
-        webSocket.sendTXT(wsClientID, cstr);
-    }
-  
-
-  } else {
-    Serial.println("null pointer!");
-  }
-
-
+      //send the binary image buffer + length of the buffer
+      webSocket.sendTXT(wsClientID, attitudeString);
+  } 
 
 
 }
 
 
-
-
-// gives MSP packet the correct header bytes  - candidate for refactoring
+// opens the read & write serial ports on the ESP and passes their address to the MSP communication classes
 void setupMSP() {
 
 
@@ -301,7 +281,7 @@ void setupMSP() {
 
 }
 
-//TODO: perhaps flesh this function out to parse some 'headers' for websocket messages
+// turns a raw RC command string seperated by commas into a vector
 void processCommandArray(std::string input) {
 
     std::vector<int> vect;
@@ -321,7 +301,6 @@ void processCommandArray(std::string input) {
     }
 }
 
-//TODO: Send function for websocket
 
 // Called when receiving any WebSocket message
 void onWebSocketEvent(uint8_t num,
@@ -354,12 +333,9 @@ void onWebSocketEvent(uint8_t num,
 
     case WStype_TEXT:
       wsClientID = num;
-      /*
-      Serial.print(wsClientID);
-      Serial.printf("[%u] Text: %s\n", num, payload);
-      */
-      processCommandArray((const char*)payload);
 
+      // assumes any incoming text connection is a command array
+      processCommandArray((const char*)payload);
       
       mspSender.writeRawRCPacket(rcChannels);
       
@@ -378,6 +354,7 @@ void onWebSocketEvent(uint8_t num,
   }
 }
 
+//core 0 process -> handles networking and serial I/O
 void Core0Task(void *pvParameters) {
 
 
@@ -428,6 +405,7 @@ void setup() {
 
 }
 
+// core 1 process -> sends image & aircraft attitude
 void loop() {
 
     //start time counter
@@ -436,8 +414,9 @@ void loop() {
       if (currentMillis > loopTime) {
 
         takeAndSendImage(); 
+        getAndSendAttitude();
 
-        mspReceiver.getAttitude();
+        //mspReceiver.getAttitude();
 
 
         
