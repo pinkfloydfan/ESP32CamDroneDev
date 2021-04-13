@@ -58,6 +58,8 @@ msplib::MspReceiver mspReceiver;
 
 TaskHandle_t Core0TaskHandle;
 
+int loopCtr = 0;
+
 //How many RC channels we need to write to the flight controller. Needed for the MSP protocol checksum
 const int rcChannelNumber = 8;
 
@@ -84,7 +86,7 @@ uint32_t loopTime = 0;
 
 // (frequency)^-1 of main loop, during each loop a camera image is taken and the stored RC channels are written to the FC board.
 // 50ms seems to be a 'safe' number without the camera exploding
-const uint16_t loopDelay = 50;
+const uint16_t loopDelay = 50; //10hz?
 
 // how many bytes each MSP_SET_RAW_RC packet is. It really shouldn't be here.
 const int mspPacketLength = 22;
@@ -151,7 +153,7 @@ void setupCamera() {
     //early 2000s nokia phone camera quality
     //tbf consider improving the websocket exchange so this can be adjusted from the client?
     config.frame_size = FRAMESIZE_VGA;
-    config.jpeg_quality = 10;
+    config.jpeg_quality = 30;
     config.fb_count = 1;
 
 
@@ -251,9 +253,15 @@ void takeAndSendImage() {
 }
 
 // polls msplib for the attitude information and then sends it as a string over websockets
-void getAndSendAttitude() {
+void getAndSendAttitude(bool CamSync) {
 
-  String attitudeString = mspReceiver.getAttitude();
+  String attitudeString;
+
+  if (CamSync == false) {
+    attitudeString = mspReceiver.getAttitude();
+  } else {
+    attitudeString = mspReceiver.getCamSyncAttitude();
+  }
   //Serial.println(attitudeString);
     
     //check if there's a websocket client connected - will need more rigour when scaling this for multiple aircraft
@@ -334,12 +342,16 @@ void onWebSocketEvent(uint8_t num,
     case WStype_TEXT:
       wsClientID = num;
 
+      Serial.println((const char*)payload);
+
+      /*
       // assumes any incoming text connection is a command array
       processCommandArray((const char*)payload);
       
       mspSender.writeRawRCPacket(rcChannels);
       
       //webSocket.sendTXT(num, payload);
+      */
       break;
 
     // For everything else: do nothing
@@ -358,9 +370,7 @@ void onWebSocketEvent(uint8_t num,
 void Core0Task(void *pvParameters) {
 
 
-    // Start WebSocket server and assign callback
-    webSocket.begin();
-    webSocket.onEvent(onWebSocketEvent);
+
 
 
 
@@ -371,12 +381,8 @@ void Core0Task(void *pvParameters) {
 
       mspReceiver.readMSPOutput();
 
+      delay(20);
 
-
-
-      delay(50);
-
-      webSocket.loop();
 
 
     }
@@ -384,6 +390,9 @@ void Core0Task(void *pvParameters) {
 }
 
 void setup() {
+
+
+    // Start WebSocket server and assign callback
 
   
   // Start Serial monitor port
@@ -394,6 +403,9 @@ void setup() {
   setupAP();
 
   setupMSP();
+
+  webSocket.begin();
+  webSocket.onEvent(onWebSocketEvent);
 
   xTaskCreatePinnedToCore(Core0Task,
                           "Core0Task",
@@ -408,22 +420,20 @@ void setup() {
 // core 1 process -> sends image & aircraft attitude
 void loop() {
 
-    //start time counter
-    uint32_t currentMillis = millis();
-    
-      if (currentMillis > loopTime) {
+    delay(5);
 
+    loopCtr++;
+
+    if (loopCtr > 4) {
         takeAndSendImage(); 
-        getAndSendAttitude();
+        getAndSendAttitude(true);
+        loopCtr = 0;
 
-        //mspReceiver.getAttitude();
-
-
-        
-        //sendTelemetry(mspReceiver.getAttitude());
-
-        //sets the frequency in a non blocking way
-        loopTime = currentMillis + loopDelay;
+    } else {
+      getAndSendAttitude(false);
     }
+
+    webSocket.loop();
+
 
 }

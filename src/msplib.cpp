@@ -95,7 +95,10 @@ namespace msplib {
         #define MSP_IMU 102
 
         bool readLock = false;
-        int16_t attitude[9] = {0};
+        double attitude[9] = {0};
+
+        double gyroScale  = (0.2439*0.0174533); //gyro reading scale factor, and then convert to rad/s
+        double accelScale = (9.81/512); //1g = 512, convert to m/s^2
 
         public:
         
@@ -105,7 +108,22 @@ namespace msplib {
             //prevent race condition
             readLock = true;
 
-            String attitudeString = (String(attitude[0]) + ", " + String(attitude[1]) + ", " + String(attitude[2]) + ", " +  String(attitude[3]) + ", " +  String(attitude[4]) + ", " + String(attitude[5]) + ", " + String(attitude[6]) + ", " + String(attitude[7]) + ", " + String(attitude[8])) ;
+            String attitudeString = (String(attitude[0]/10) + ", " + String(attitude[1]/10) + ", " + String(attitude[2]) + ", " +  String(attitude[3]) + ", " +  String(attitude[4]) + ", " + String(attitude[5]) + ", " + String(attitude[6]) + ", " + String(attitude[7]) + ", " + String(attitude[8]) + ", " + millis() + ", " + 0) ;
+            //Serial.println(attitudeString);
+
+            readLock = false;
+
+            return(String(attitudeString));
+
+        }
+
+        String getCamSyncAttitude() {
+            
+            //prevent race condition
+            readLock = true;
+
+            String attitudeString = (String(attitude[0]/10) + ", " + String(attitude[1]/10) + ", " + String(attitude[2]) + ", " +  String(attitude[3]) + ", " +  String(attitude[4]) + ", " + String(attitude[5]) + ", " + String(attitude[6]) + ", " + String(attitude[7]) + ", " + String(attitude[8]) + ", " + millis() + ", " + 1) ;
+            //Serial.println(attitudeString);
 
             readLock = false;
 
@@ -266,12 +284,12 @@ namespace msplib {
 
                             if (readLock == false) {
 
-                                attitude[3] = accx;
-                                attitude[4] = accy;
-                                attitude[5] = accz;
-                                attitude[6] = gyrx;
-                                attitude[7] = gyry;
-                                attitude[8] = gyrz; 
+                                attitude[3] = accx*accelScale;
+                                attitude[4] = accy*accelScale;
+                                attitude[5] = accz*accelScale;
+                                attitude[6] = gyrx*gyroScale;
+                                attitude[7] = gyry*gyroScale;
+                                attitude[8] = gyrz*gyroScale; 
 
                             }
                             
