@@ -54,9 +54,12 @@ typedef enum {
 msplib::MspSender mspSender;
 msplib::MspReceiver mspReceiver;
 
+
 //DUAL CORE BABY
 
 TaskHandle_t Core0TaskHandle;
+
+int currentTime;
 
 int loopCtr = 0;
 
@@ -82,11 +85,7 @@ IPAddress subnet(255,255,255,0);
 volatile int rcChannels[8] = {1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500};
 
 //time counter for serial signal send loop
-uint32_t loopTime = 0;
-
-// (frequency)^-1 of main loop, during each loop a camera image is taken and the stored RC channels are written to the FC board.
-// 50ms seems to be a 'safe' number without the camera exploding
-const uint16_t loopDelay = 50; //10hz?
+uint8_t loopTime = 10;
 
 // how many bytes each MSP_SET_RAW_RC packet is. It really shouldn't be here.
 const int mspPacketLength = 22;
@@ -152,8 +151,8 @@ void setupCamera() {
 
     //early 2000s nokia phone camera quality
     //tbf consider improving the websocket exchange so this can be adjusted from the client?
-    config.frame_size = FRAMESIZE_VGA;
-    config.jpeg_quality = 30;
+    config.frame_size = FRAMESIZE_HVGA;
+    config.jpeg_quality = 20;
     config.fb_count = 1;
 
 
@@ -230,6 +229,15 @@ void sendImageBuffer(const uint8_t* imageBuffer, const size_t len) {
 
 }
 
+void sendImageString(String image) {
+  //Serial.println(image);
+
+  String stampedImage = (image + ", " + millis());
+
+  webSocket.sendTXT(wsClientID, stampedImage);
+  
+}
+
 
 //attempts to access ESP camera and get its file buffer
 void takeAndSendImage() {
@@ -244,10 +252,14 @@ void takeAndSendImage() {
       // Initializes array from the image buffer and gets its length
     const uint8_t *data = (const uint8_t *)fb->buf;
     const size_t len = fb -> len;
+    
+    mspReceiver.setCameraStamp();
 
     const String base64str = base64::encode(data, len);
     //Serial.println(base64str);
-    sendImageBuffer(data, len); 
+    sendImageBuffer(data, len);
+
+    //sendImageString(base64str); 
   }
 
 }
@@ -266,6 +278,8 @@ void getAndSendAttitude(bool CamSync) {
     
     //check if there's a websocket client connected - will need more rigour when scaling this for multiple aircraft
   if (wsClientConnected == true) {
+
+      //  Serial.println(attitudeString);
 
       //send the binary image buffer + length of the buffer
       webSocket.sendTXT(wsClientID, attitudeString);
@@ -342,16 +356,16 @@ void onWebSocketEvent(uint8_t num,
     case WStype_TEXT:
       wsClientID = num;
 
-      Serial.println((const char*)payload);
+      //Serial.println((const char*)payload);
 
-      /*
+      
       // assumes any incoming text connection is a command array
       processCommandArray((const char*)payload);
       
       mspSender.writeRawRCPacket(rcChannels);
       
       //webSocket.sendTXT(num, payload);
-      */
+      
       break;
 
     // For everything else: do nothing
@@ -391,6 +405,8 @@ void Core0Task(void *pvParameters) {
 
 void setup() {
 
+  currentTime = millis();
+
 
     // Start WebSocket server and assign callback
 
@@ -420,20 +436,26 @@ void setup() {
 // core 1 process -> sends image & aircraft attitude
 void loop() {
 
-    delay(5);
+    if ((micros() - currentTime) > loopTime) {
 
-    loopCtr++;
+      loopCtr++;
 
-    if (loopCtr > 4) {
-        takeAndSendImage(); 
-        getAndSendAttitude(true);
-        loopCtr = 0;
+      if (loopCtr > 3) {
+          takeAndSendImage(); 
+          getAndSendAttitude(true);
+          loopCtr = 0;
 
-    } else {
-      getAndSendAttitude(false);
-    }
+      } else {
+        getAndSendAttitude(false);
+      }
 
-    webSocket.loop();
+      currentTime = micros();
+      webSocket.loop();
+
+
+    } 
+
+
 
 
 }

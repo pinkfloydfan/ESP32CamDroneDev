@@ -94,6 +94,8 @@ namespace msplib {
         #define MSP_ATTITUDE 108
         #define MSP_IMU 102
 
+        uint16_t cameraStamp = 0; 
+
         bool readLock = false;
         double attitude[9] = {0};
 
@@ -122,7 +124,7 @@ namespace msplib {
             //prevent race condition
             readLock = true;
 
-            String attitudeString = (String(attitude[0]/10) + ", " + String(attitude[1]/10) + ", " + String(attitude[2]) + ", " +  String(attitude[3]) + ", " +  String(attitude[4]) + ", " + String(attitude[5]) + ", " + String(attitude[6]) + ", " + String(attitude[7]) + ", " + String(attitude[8]) + ", " + millis() + ", " + 1) ;
+            String attitudeString = (String(attitude[0]/10) + ", " + String(attitude[1]/10) + ", " + String(attitude[2]) + ", " +  String(attitude[3]) + ", " +  String(attitude[4]) + ", " + String(attitude[5]) + ", " + String(attitude[6]) + ", " + String(attitude[7]) + ", " + String(attitude[8]) + ", " + millis() + ", " + cameraStamp) ;
             //Serial.println(attitudeString);
 
             readLock = false;
@@ -130,6 +132,11 @@ namespace msplib {
             return(String(attitudeString));
 
         }
+
+        void setCameraStamp() {
+            cameraStamp = millis();
+        }
+
 
         // Function to listen to the serial port for MSP messages, currently only IMU information and attitude information is supported. Information is then written to the attitude array. 
         void readMSPOutput() {
@@ -151,6 +158,7 @@ namespace msplib {
             int16_t gyry = 0;
             int16_t gyrz = 0;
 
+   
 
             while (mspPort->available()) {
 
